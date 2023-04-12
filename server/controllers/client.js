@@ -7,17 +7,30 @@ import getCountryIso3 from "country-iso-2-to-3";
 export const getProducts = async (req, res) => {
   try {
     const products = await Product.find();
-    const productsWithStats = await Promise.all(
-      products.map(async (product) => {
-        const stat = await ProductStat.find({
-          productId: product._id,
-        });
-        return {
-          ...product._doc,
-          stat,
-        };
-      })
+    const productsWithStatsArray = await ProductStat.find(
+      {
+        productId: {
+          $in: products.map((product) => product._id),
+        },
+      },
+      "productId yearlySalesTotal yearlyTotalSoldUnits"
     );
+
+    const productStatsMap = new Map();
+    productsWithStatsArray.forEach((productStat) => {
+      productStatsMap.set(productStat.productId, productStat);
+    });
+
+    const productsWithStats = products.map((product) => {
+      const productStats =
+        productStatsMap.get(product._doc._id.toString()) || {};
+      return {
+        ...product._doc,
+        stat: {
+          ...productStats._doc,
+        },
+      };
+    });
     res.status(200).json(productsWithStats);
   } catch (e) {
     res.status(404).json({ message: e.message });
